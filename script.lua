@@ -11224,7 +11224,7 @@ local Image = Instance.new("ImageLabel")
 Image.Parent = Frame
 Image.AnchorPoint = Vector2.new(0.5, 0.5)
 Image.Position = UDim2.new(0.5, 0, 0.5, 0)
-Image.Size = UDim2.new(0, 40, 0, 40)
+Image.Size = UDim2.new(0, 20, 0, 20)
 Image.BackgroundTransparency = 1
 Image.Image = "rbxassetid://130364232574601"
 
