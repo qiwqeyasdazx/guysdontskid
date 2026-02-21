@@ -5,7 +5,7 @@ local Window = WindUI:CreateWindow({
     Folder = "Saturn Gen3",
     Size = UDim2.fromOffset(520, 300),
     Transparent = true,
-    Theme = "Dark",
+    Theme = "Gold",
     SideBarWidth = 190,
     HasOutline = false,
 });
