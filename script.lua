@@ -1,7 +1,7 @@
 local WindUI = (loadstring(game:HttpGet("https://github.com/Footagesus/WindUI/releases/latest/download/main.lua")))();
 pcall(function()
-	for _, t in pairs(WindUI:GetThemes()) do
-		print("WINDUI THEME: " .. tostring(t));
+	for name, t in pairs(WindUI:GetThemes()) do
+		print("WINDUI THEME: " .. tostring(name));
 	end;
 end);
 local Window = WindUI:CreateWindow({
@@ -10097,5 +10097,3 @@ spawn(function()
 		end);
 	end;
 end);
-
-
