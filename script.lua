@@ -9945,9 +9945,17 @@ local collectFruits = function()
 		end;
 	end;
 end;
+local function getFruitInWorkspace()
+	for _, v in pairs(workspace:GetChildren()) do
+		if string.find(v.Name, "Fruit") and v:FindFirstChild("Handle") then
+			return v;
+		end;
+	end;
+	return nil;
+end;
 TweenToFruitToggle = Tabs.FruitTab:Toggle({
 	Title = "Tween To Fruit",
-	Desc = "Tweens directly to fruit first, then pulls it to you",
+	Desc = "Pauses farm when fruit spawns, collects it, then resumes farm",
 	Value = _G.Settings.Fruit["Tween To Fruit"],
 	Callback = function(state)
 		_G.Settings.Fruit["Tween To Fruit"] = state;
@@ -9955,19 +9963,34 @@ TweenToFruitToggle = Tabs.FruitTab:Toggle({
 	end
 });
 spawn(function()
-	while wait(0.3) do
+	while wait(0.5) do
 		if _G.Settings.Fruit["Tween To Fruit"] then
 			pcall(function()
-				local found = false;
-				for _, v in pairs(workspace:GetChildren()) do
-					if string.find(v.Name, "Fruit") and v:FindFirstChild("Handle") then
-						found = true;
-						local dist = (v.Handle.Position - game.Players.LocalPlayer.Character.HumanoidRootPart.Position).Magnitude;
-						if dist > 10 then
-							TweenPlayer(v.Handle.CFrame);
-						else
-							collectFruits();
+				local fruit = getFruitInWorkspace();
+				if fruit then
+					local farmWasOn = _G.Settings.Main["Auto Farm"];
+					local masteryWasOn = _G.Settings.Main["Auto Farm Fruit Mastery"];
+					local swordWasOn = _G.Settings.Main["Auto Farm Sword Mastery"];
+					_G.Settings.Main["Auto Farm"] = false;
+					_G.Settings.Main["Auto Farm Fruit Mastery"] = false;
+					_G.Settings.Main["Auto Farm Sword Mastery"] = false;
+					repeat
+						fruit = getFruitInWorkspace();
+						if fruit and fruit:FindFirstChild("Handle") then
+							local dist = (fruit.Handle.Position - game.Players.LocalPlayer.Character.HumanoidRootPart.Position).Magnitude;
+							if dist > 8 then
+								TweenPlayer(fruit.Handle.CFrame);
+							else
+								collectFruits();
+							end;
 						end;
+						wait(0.3);
+					until not getFruitInWorkspace() or not _G.Settings.Fruit["Tween To Fruit"];
+					wait(0.5);
+					if _G.Settings.Fruit["Tween To Fruit"] then
+						_G.Settings.Main["Auto Farm"] = farmWasOn;
+						_G.Settings.Main["Auto Farm Fruit Mastery"] = masteryWasOn;
+						_G.Settings.Main["Auto Farm Sword Mastery"] = swordWasOn;
 					end;
 				end;
 			end);
