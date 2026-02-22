@@ -1,9 +1,4 @@
 local WindUI = (loadstring(game:HttpGet("https://github.com/Footagesus/WindUI/releases/latest/download/main.lua")))();
-pcall(function()
-	for name, t in pairs(WindUI:GetThemes()) do
-		print("WINDUI THEME: " .. tostring(name));
-	end;
-end);
 local Window = WindUI:CreateWindow({
     Title = "☄️Eclipse Hub☄️",
     Author = "By 1x1x1x1x1x1 And David Baszucki",
@@ -242,7 +237,12 @@ _G.Settings = {
 	},
 	DragonDojo = {
 		["Auto Farm Blaze Ember"] = false,
-		["Auto Collect Blaze Ember"] = false
+		["Auto Collect Blaze Ember"] = false,
+		["Auto Upgrade Draco Trial"] = false,
+		["Auto Draco V1"] = false,
+		["Auto Draco V2"] = false,
+		["Auto Draco V3"] = false,
+		["Auto Relic Draco Trial"] = false
 	},
 	SeaEvent = {
 		["Selected Boat"] = "Guardian",
@@ -8164,6 +8164,179 @@ CraftVolcanicMagnetButton = Tabs.DragonDojoTab:Button({
 		(((game:GetService("ReplicatedStorage")):WaitForChild("Remotes")):WaitForChild("CommF_")):InvokeServer("CraftItem", "Craft", "Volcanic Magnet");
 	end
 });
+local DracoTrialSection = Tabs.DragonDojoTab:Section({
+	Title = "Draco Trial",
+	TextXAlignment = "Left"
+});
+GetQuestDracoLevel = function()
+	local I = { [1] = { NPC = "Dragon Wizard", Command = "Upgrade" } };
+	return (game:GetService("ReplicatedStorage").Modules.Net:FindFirstChild("RF/InteractDragonQuest")):InvokeServer(unpack(I));
+end;
+UpgradeDracoTrialToggle = Tabs.DragonDojoTab:Toggle({
+	Title = "Auto Upgrade Draco Trial",
+	Desc = "Auto tween to Dragon Wizard and upgrade",
+	Value = _G.Settings.DragonDojo["Auto Upgrade Draco Trial"],
+	Callback = function(state)
+		_G.Settings.DragonDojo["Auto Upgrade Draco Trial"] = state;
+		StopTween(_G.Settings.DragonDojo["Auto Upgrade Draco Trial"]);
+		(getgenv()).SaveSetting();
+	end
+});
+spawn(function()
+	while wait(0.5) do
+		pcall(function()
+			if _G.Settings.DragonDojo["Auto Upgrade Draco Trial"] then
+				if GetQuestDracoLevel() == false then
+					return nil;
+				elseif GetQuestDracoLevel() == true then
+					TweenPlayer(CFrame.new(5814.4272460938, 1208.3267822266, 884.57855224609));
+					local I = { [1] = { NPC = "Dragon Wizard", Command = "Upgrade" } };
+					(game:GetService("ReplicatedStorage").Modules.Net:FindFirstChild("RF/InteractDragonQuest")):InvokeServer(unpack(I));
+				end;
+			end;
+		end);
+	end;
+end);
+DracoV1Toggle = Tabs.DragonDojoTab:Toggle({
+	Title = "Auto Draco V1",
+	Desc = "Auto Quest 1 + Prehistoric Event + Collect Dragon Eggs",
+	Value = _G.Settings.DragonDojo["Auto Draco V1"],
+	Callback = function(state)
+		_G.Settings.DragonDojo["Auto Draco V1"] = state;
+		StopTween(_G.Settings.DragonDojo["Auto Draco V1"]);
+		(getgenv()).SaveSetting();
+	end
+});
+spawn(function()
+	while wait(0.5) do
+		pcall(function()
+			if _G.Settings.DragonDojo["Auto Draco V1"] then
+				if GetM("Dragon Egg") <= 0 then
+					repeat
+						wait();
+						_G.Prehis_Find = true;
+						_G.Prehis_Skills = true;
+						_G.Prehis_DE = true;
+					until not _G.Settings.DragonDojo["Auto Draco V1"] or GetM("Dragon Egg") >= 1;
+					_G.Prehis_Find = false;
+					_G.Prehis_Skills = false;
+					_G.Prehis_DE = false;
+				end;
+			end;
+		end);
+	end;
+end);
+DracoV2Toggle = Tabs.DragonDojoTab:Toggle({
+	Title = "Auto Draco V2",
+	Desc = "Auto Kill Forest Pirate + Collect Fire Flower",
+	Value = _G.Settings.DragonDojo["Auto Draco V2"],
+	Callback = function(state)
+		_G.Settings.DragonDojo["Auto Draco V2"] = state;
+		StopTween(_G.Settings.DragonDojo["Auto Draco V2"]);
+		(getgenv()).SaveSetting();
+	end
+});
+spawn(function()
+	while wait(0.5) do
+		if _G.Settings.DragonDojo["Auto Draco V2"] then
+			pcall(function()
+				local flowers = workspace:FindFirstChild("FireFlowers");
+				local enemy = GetConnectionEnemies("Forest Pirate");
+				if enemy then
+					repeat
+						wait();
+						G.Kill(enemy, _G.Settings.DragonDojo["Auto Draco V2"]);
+					until not _G.Settings.DragonDojo["Auto Draco V2"] or not enemy.Parent or enemy.Humanoid.Health <= 0 or flowers;
+				else
+					TweenPlayer(CFrame.new(-13206.452148438, 425.89199829102, -7964.5537109375));
+				end;
+				if flowers then
+					for _, f in pairs(flowers:GetChildren()) do
+						if f:IsA("Model") and f.PrimaryPart then
+							local dist = (f.PrimaryPart.Position - game.Players.LocalPlayer.Character.HumanoidRootPart.Position).Magnitude;
+							if dist <= 100 then
+								(game:GetService("VirtualInputManager")):SendKeyEvent(true, "E", false, game);
+								wait(1.5);
+								(game:GetService("VirtualInputManager")):SendKeyEvent(false, "E", false, game);
+							else
+								TweenPlayer(CFrame.new(f.PrimaryPart.Position));
+							end;
+						end;
+					end;
+				end;
+			end);
+		end;
+	end;
+end);
+DracoV3Toggle = Tabs.DragonDojoTab:Toggle({
+	Title = "Auto Draco V3",
+	Desc = "Auto Sea Event Kill Terror Shark",
+	Value = _G.Settings.DragonDojo["Auto Draco V3"],
+	Callback = function(state)
+		_G.Settings.DragonDojo["Auto Draco V3"] = state;
+		StopTween(_G.Settings.DragonDojo["Auto Draco V3"]);
+		(getgenv()).SaveSetting();
+	end
+});
+spawn(function()
+	while wait(0.5) do
+		pcall(function()
+			if _G.Settings.DragonDojo["Auto Draco V3"] then
+				repeat
+					wait();
+					_G.DangerSc = "Lv Infinite";
+					_G.Settings.SeaEvent["Sail Boat"] = true;
+					_G.Settings.SeaEvent["Auto Farm Terror Shark"] = true;
+				until not _G.Settings.DragonDojo["Auto Draco V3"];
+				_G.DangerSc = "Lv 1";
+				_G.Settings.SeaEvent["Sail Boat"] = false;
+				_G.Settings.SeaEvent["Auto Farm Terror Shark"] = false;
+			end;
+		end);
+	end;
+end);
+RelicDracoTrialToggle = Tabs.DragonDojoTab:Toggle({
+	Title = "Auto Relic Draco Trial [Beta]",
+	Desc = "Auto Trial V4 - Collect the Relic yourself first",
+	Value = _G.Settings.DragonDojo["Auto Relic Draco Trial"],
+	Callback = function(state)
+		_G.Settings.DragonDojo["Auto Relic Draco Trial"] = state;
+		StopTween(_G.Settings.DragonDojo["Auto Relic Draco Trial"]);
+		(getgenv()).SaveSetting();
+	end
+});
+spawn(function()
+	while wait(0.5) do
+		if _G.Settings.DragonDojo["Auto Relic Draco Trial"] then
+			pcall(function()
+				local Root = game.Players.LocalPlayer.Character.HumanoidRootPart;
+				if workspace.Map:FindFirstChild("DracoTrial") then
+					game:GetService("ReplicatedStorage").Remotes.DracoTrial:InvokeServer();
+					wait(0.5);
+					repeat wait(); TweenPlayer(CFrame.new(-39934.9765625, 10685.359375, 22999.34375));
+					until not _G.Settings.DragonDojo["Auto Relic Draco Trial"] or (Root.Position - CFrame.new(-39934.9765625, 10685.359375, 22999.34375).Position).Magnitude <= 10;
+					repeat wait(); TweenPlayer(CFrame.new(-40511.25390625, 9376.4013671875, 23458.37890625));
+					until not _G.Settings.DragonDojo["Auto Relic Draco Trial"] or (Root.Position - CFrame.new(-40511.25390625, 9376.4013671875, 23458.37890625).Position).Magnitude <= 10;
+					wait(2.5);
+					repeat wait(); TweenPlayer(CFrame.new(-39914.65625, 10685.384765625, 23000.177734375));
+					until not _G.Settings.DragonDojo["Auto Relic Draco Trial"] or (Root.Position - CFrame.new(-39914.65625, 10685.384765625, 23000.177734375).Position).Magnitude <= 10;
+					repeat wait(); TweenPlayer(CFrame.new(-40045.83203125, 9376.3984375, 22791.287109375));
+					until not _G.Settings.DragonDojo["Auto Relic Draco Trial"] or (Root.Position - CFrame.new(-40045.83203125, 9376.3984375, 22791.287109375).Position).Magnitude <= 10;
+					wait(2.5);
+					repeat wait(); TweenPlayer(CFrame.new(-39908.5, 10685.405273438, 22990.04296875));
+					until not _G.Settings.DragonDojo["Auto Relic Draco Trial"] or (Root.Position - CFrame.new(-39908.5, 10685.405273438, 22990.04296875).Position).Magnitude <= 10;
+					repeat wait(); TweenPlayer(CFrame.new(-39609.5, 9376.400390625, 23472.94335975));
+					until not _G.Settings.DragonDojo["Auto Relic Draco Trial"] or (Root.Position - CFrame.new(-39609.5, 9376.400390625, 23472.94335975).Position).Magnitude <= 10;
+				else
+					local tp = workspace.Map.PrehistoricIsland:FindFirstChild("TrialTeleport");
+					if tp and tp:IsA("Part") then
+						TweenPlayer(CFrame.new(tp.Position));
+					end;
+				end;
+			end);
+		end;
+	end;
+end);
 local SeaEventSection = Tabs.SeaEventTab:Section({
 	Title = "Sea Event",
 	TextXAlignment = "Left"
@@ -9763,8 +9936,18 @@ spawn(function()
 		end;
 	end;
 end);
+local collectFruits = function()
+	local char = game.Players.LocalPlayer.Character;
+	if not char then return end;
+	for _, v in pairs(workspace:GetChildren()) do
+		if string.find(v.Name, "Fruit") and v:FindFirstChild("Handle") then
+			v.Handle.CFrame = char.HumanoidRootPart.CFrame;
+		end;
+	end;
+end;
 TweenToFruitToggle = Tabs.FruitTab:Toggle({
 	Title = "Tween To Fruit",
+	Desc = "Tweens directly to fruit first, then pulls it to you",
 	Value = _G.Settings.Fruit["Tween To Fruit"],
 	Callback = function(state)
 		_G.Settings.Fruit["Tween To Fruit"] = state;
@@ -9772,13 +9955,22 @@ TweenToFruitToggle = Tabs.FruitTab:Toggle({
 	end
 });
 spawn(function()
-	while wait(0.2) do
+	while wait(0.3) do
 		if _G.Settings.Fruit["Tween To Fruit"] then
-			for i, v in pairs(game.Workspace:GetChildren()) do
-				if string.find(v.Name, "Fruit") then
-					TweenPlayer(v.Handle.CFrame);
+			pcall(function()
+				local found = false;
+				for _, v in pairs(workspace:GetChildren()) do
+					if string.find(v.Name, "Fruit") and v:FindFirstChild("Handle") then
+						found = true;
+						local dist = (v.Handle.Position - game.Players.LocalPlayer.Character.HumanoidRootPart.Position).Magnitude;
+						if dist > 10 then
+							TweenPlayer(v.Handle.CFrame);
+						else
+							collectFruits();
+						end;
+					end;
 				end;
-			end;
+			end);
 		end;
 	end;
 end);
@@ -10097,4 +10289,3 @@ spawn(function()
 		end);
 	end;
 end);
-
