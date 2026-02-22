@@ -1882,7 +1882,8 @@ BringEnemy = function()
 	pcall(function()
 		sethiddenproperty(plr, "SimulationRadius", math.huge);
 	end);
-	local targetPos = PosMon or hrp.Position;
+	local rawPos = PosMon or hrp.Position;
+	local targetPos = typeof(rawPos) == "CFrame" and rawPos.Position or rawPos;
 	local enemies = workspace.Enemies:GetChildren();
 	local count = 0;
 	for _, mob in ipairs(enemies) do
@@ -1987,8 +1988,9 @@ function TweenPlayer(pos)
 	tween:Play();
 	task.spawn(function()
 		while tween.PlaybackState == Enum.PlaybackState.Playing do
-			if not shouldTween then
+			if not shouldTween or _G.StopTween then
 				tween:Cancel();
+				shouldTween = false;
 				break;
 			end;
 			task.wait(0.1);
@@ -2059,6 +2061,18 @@ G.Masgun = function(I, e)
 		end;
 	end;
 end;
+spawn(function()
+	(game:GetService("RunService")).RenderStepped:Connect(function()
+		pcall(function()
+			if setscriptable then
+				setscriptable(game.Players.LocalPlayer, "SimulationRadius", true);
+			end;
+			if sethiddenproperty then
+				sethiddenproperty(game.Players.LocalPlayer, "SimulationRadius", math.huge);
+			end;
+		end);
+	end);
+end);
 local env = (getgenv or getrenv or getfenv)();
 local rs = game:GetService("ReplicatedStorage");
 local players = game:GetService("Players");
@@ -2273,6 +2287,7 @@ end);
 function StopTween(State)
 	if not State then
 		_G.StopTween = true;
+		shouldTween = false;
 		TweenPlayer((game:GetService("Players")).LocalPlayer.Character.HumanoidRootPart.CFrame);
 		if (game:GetService("Players")).LocalPlayer.Character.HumanoidRootPart:FindFirstChild("BodyClip") then
 			((game:GetService("Players")).LocalPlayer.Character.HumanoidRootPart:FindFirstChild("BodyClip")):Destroy();
