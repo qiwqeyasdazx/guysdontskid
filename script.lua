@@ -1,4 +1,17 @@
 local WindUI = (loadstring(game:HttpGet("https://github.com/Footagesus/WindUI/releases/download/2.3.0/main.lua")))();
+WindUI:SetTheme({
+	Background = Color3.fromRGB(30, 30, 30),
+	Secondary = Color3.fromRGB(40, 40, 40),
+	Tertiary = Color3.fromRGB(50, 50, 50),
+	Text = Color3.fromRGB(255, 255, 255),
+	SubText = Color3.fromRGB(180, 180, 180),
+	Accent = Color3.fromRGB(255, 140, 0),
+	AccentDark = Color3.fromRGB(200, 100, 0),
+	AccentLight = Color3.fromRGB(255, 180, 50),
+	WindowShadow = Color3.fromRGB(0, 0, 0),
+	Outline = Color3.fromRGB(60, 60, 60),
+	Toggle = Color3.fromRGB(255, 140, 0),
+});
 local Window = WindUI:CreateWindow({
     Title = "🪐Saturn Hub🪐",
     Author = "By 1x1x1x1x1x1 And David Baszucki",
