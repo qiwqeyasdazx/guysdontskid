@@ -2601,7 +2601,7 @@ _G.BringRange = _G.BringRange or 235;
 _G.MaxBringMobs = _G.MaxBringMobs or 3;
 _G.MobHeight = _G.MobHeight or 20;
 local TweenService = game:GetService("TweenService");
-local TweenInfoBring = TweenInfo.new(0.45, Enum.EasingStyle.Linear, Enum.EasingDirection.Out);
+local TweenInfoBring = TweenInfo.new(0.3, Enum.EasingStyle.Linear, Enum.EasingDirection.Out);
 local function IsRaidMob(mob)
 	local n = mob.Name:lower();
 	if n:find("raid") or n:find("microchip") or n:find("island") then
@@ -2638,26 +2638,33 @@ BringEnemy = function()
 			if dist <= _G.BringRange and not root:GetAttribute("Tweening") then
 				count = count + 1;
 				root:SetAttribute("Tweening", true);
-				local tween = TweenService:Create(root, TweenInfoBring, {CFrame = CFrame.new(targetPos)});
-				tween:Play();
-				tween.Completed:Once(function()
-					if root then root:SetAttribute("Tweening", false) end;
+				-- Teleporte direto: mais confiável que tween para garantir ataque
+				root.CFrame = CFrame.new(targetPos);
+				root:SetAttribute("Tweening", false);
+				-- Ataca o mob imediatamente após trazer
+				pcall(function()
+					local head = mob:FindFirstChild("Head") or root;
+					if head and hum.Health > 0 then
+						local otherMobs = {};
+						for _, m2 in ipairs(enemies) do
+							if m2 ~= mob and m2:FindFirstChild("HumanoidRootPart") then
+								table.insert(otherMobs, {[1] = m2, [2] = m2:FindFirstChild("HumanoidRootPart")});
+							end;
+						end;
+						AttackModule:AttackEnemy(head, otherMobs);
+					end;
 				end);
 			end;
 		end;
 	end;
 end;
 task.spawn(function()
-	while task.wait(1) do
+	while task.wait(0.8) do
 		if _G.Settings.Setting["Bring Mob"] then
 			_B = true;
 			BringEnemy();
-			task.wait(3);
-			_B = false;
-			task.wait(5);
 		else
 			_B = false;
-			task.wait(1);
 		end;
 	end;
 end);
@@ -2758,6 +2765,8 @@ G.Kill = function(I, e)
 	if not (I and e) then return end;
 	local hrp = I:FindFirstChild("HumanoidRootPart");
 	if not hrp then return end;
+	local hum = I:FindFirstChild("Humanoid");
+	if not hum or hum.Health <= 0 then return end;
 	if not I:GetAttribute("Locked") then
 		I:SetAttribute("Locked", hrp.CFrame);
 	end;
@@ -2768,6 +2777,16 @@ G.Kill = function(I, e)
 	local tool = game.Players.LocalPlayer.Character:FindFirstChildOfClass("Tool");
 	if not tool then return end;
 	TweenPlayer(hrp.CFrame * CFrame.new(0, _G.MobHeight, 0));
+	-- Garante ataque direto ao mob (não depende só da proximidade)
+	task.spawn(function()
+		task.wait(0.12);
+		pcall(function()
+			if hum and hum.Health > 0 then
+				local head = I:FindFirstChild("Head") or hrp;
+				AttackModule:AttackEnemy(head, {});
+			end;
+		end);
+	end);
 end;
 G.Kill2 = function(I, e)
 	if I and e then
@@ -3673,28 +3692,7 @@ spawn(function()
 	end;
 end);
 
-AutoFastFarmToggle = Tabs.MainTab:Toggle({
-	Title = "Auto Fast Farm",
-	Desc = "Function Sea 1 Only",
-	Value = _G.Settings.Main["Auto Fast Farm"],
-	Callback = function(state)
-		_G.Settings.Main["Auto Fast Farm"] = state;
-		StopTween(_G.Settings.Main["Auto Fast Farm"]);
-		(getgenv()).SaveSetting();
-	end
-});
-spawn(function()
-	pcall(function()
-		while wait(0.2) do
-			if _G.Settings.Main["Auto Fast Farm"] and World1 then
-				if game.Players.LocalPlayer.Data.Level.Value >= 10 then
-					_G.Settings.Main["Auto Farm"] = false;
-					_G.Settings.Main["Auto Fast Farm"] = true;
-				end;
-			end;
-		end;
-	end);
-end);
+-- [Auto Fast Farm removido]
 
 MasteryFarmSection = Tabs.MainTab:Section({
 	Title = "Mastery Farm",
@@ -4952,26 +4950,114 @@ ChestFarmSection = Tabs.OthersTab:Section({
 	Title = "Chest Farm",
 	TextXAlignment = "Left"
 });
+
+-- =========================================================
+-- AUTO FARM CHEST TWEEN
+-- TweenPlayer rápido e preciso para cada baú em sequência.
+-- Detecta subida de Beli para confirmar coleta e salta
+-- imediatamente para o próximo baú sem esperar timeout.
+-- =========================================================
+local _chestTweenActive = false;
+local _chestTweenLastBeli = 0;
 AutoFarmChestTweenToggle = Tabs.OthersTab:Toggle({
 	Title = "Auto Farm Chest Tween",
-	Desc = "Tween to chest",
+	Desc = "Tween rápido para cada baú — pula pro próximo ao subir o dinheiro",
 	Value = _G.Settings.Farm["Auto Farm Chest Tween"],
 	Callback = function(state)
 		_G.Settings.Farm["Auto Farm Chest Tween"] = state;
-		StopTween(_G.Settings.Farm["Auto Farm Chest Tween"]);
+		_chestTweenActive = state;
+		if not state then StopTween(false); end;
 		(getgenv()).SaveSetting();
 	end
 });
+-- Listener de Beli: detecta subida instantaneamente
+task.spawn(function()
+	local plr = game.Players.LocalPlayer;
+	repeat task.wait() until plr.Data and plr.Data:FindFirstChild("Beli");
+	plr.Data.Beli:GetPropertyChangedSignal("Value"):Connect(function()
+		_chestTweenLastBeli = plr.Data.Beli.Value;
+	end);
+end);
+task.spawn(function()
+	while task.wait(0) do
+		if not _chestTweenActive then task.wait(0.1); continue; end;
+		pcall(function()
+			local plr = game.Players.LocalPlayer;
+			local hrp = plr.Character and plr.Character:FindFirstChild("HumanoidRootPart");
+			if not hrp then return; end;
+			-- Coleta baús ordenados por distância
+			local chests = {};
+			for _, v in pairs(workspace.ChestModels:GetChildren()) do
+				if v.Name:find("Chest") and v:FindFirstChild("RootPart") then
+					local dist = (v.RootPart.Position - hrp.Position).Magnitude;
+					table.insert(chests, {model = v, dist = dist});
+				end;
+			end;
+			if #chests == 0 then task.wait(0.3); return; end;
+			table.sort(chests, function(a, b) return a.dist < b.dist; end);
+			for _, entry in ipairs(chests) do
+				if not _chestTweenActive then break; end;
+				local v = entry.model;
+				if not v or not v.Parent or not v:FindFirstChild("RootPart") then continue; end;
+				local beliBefore = _chestTweenLastBeli;
+				-- Tween rápido direto ao baú
+				TweenPlayer(v.RootPart.CFrame);
+				-- Aguarda coleta: sai imediatamente quando Beli subir ou baú sumir
+				local timeout = 0;
+				repeat
+					task.wait(0.03);
+					timeout = timeout + 0.03;
+				until not _chestTweenActive
+					or not v.Parent
+					or _chestTweenLastBeli > beliBefore
+					or timeout >= 2.5;
+			end;
+		end);
+	end;
+end);
+
+-- =========================================================
+-- AUTO FARM CHEST BYPASS
+-- Teleporte instantâneo (CFrame direto) em todos os baús.
+-- Após varrer todos, espera 12s e reinicia o ciclo.
+-- =========================================================
+local _chestBypassActive = false;
 AutoFarmChestInstantToggle = Tabs.OthersTab:Toggle({
-	Title = "Auto Farm Chest Instant",
-	Desc = "Instant to chest",
+	Title = "Auto Farm Chest Bypass",
+	Desc = "Teleporte instantâneo em todos os baús — reset a cada 12s",
 	Value = _G.Settings.Farm["Auto Farm Chest Instant"],
 	Callback = function(state)
 		_G.Settings.Farm["Auto Farm Chest Instant"] = state;
-		StopTween(_G.Settings.Farm["Auto Farm Chest Instant"]);
+		_chestBypassActive = state;
 		(getgenv()).SaveSetting();
 	end
 });
+task.spawn(function()
+	while task.wait(0) do
+		if not _chestBypassActive then task.wait(0.2); continue; end;
+		pcall(function()
+			local hrp = game.Players.LocalPlayer.Character
+				and game.Players.LocalPlayer.Character:FindFirstChild("HumanoidRootPart");
+			if not hrp then return; end;
+			-- Varre todos os baús do ciclo atual sem delay
+			for _, v in pairs(workspace.ChestModels:GetChildren()) do
+				if not _chestBypassActive then break; end;
+				if v and v.Parent and v.Name:find("Chest") and v:FindFirstChild("RootPart") then
+					hrp.CFrame = v.RootPart.CFrame;
+					task.wait(0.03);
+				end;
+			end;
+		end);
+		-- Reseta após 12 segundos (tempo de respawn dos baús)
+		if _chestBypassActive then
+			local t = 0;
+			while _chestBypassActive and t < 12 do
+				task.wait(0.1);
+				t = t + 0.1;
+			end;
+		end;
+	end;
+end);
 AutoStopItemsToggle = Tabs.OthersTab:Toggle({
 	Title = "Auto Stop Items",
 	Desc = "Stop When Get God's Chalice or FoD",
@@ -8835,55 +8921,93 @@ SelectedTeleportIslandDropdown = Tabs.TeleportTab:Dropdown({
 		_G.SelectIsland = option;
 	end
 });
+
+-- Teleport To Island (CFrame instantâneo)
 AutoTeleportToIslandToggle = Tabs.TeleportTab:Toggle({
 	Title = "Teleport To Island",
-	Desc = "Motor Eclipse: teleporte dinâmico para qualquer ilha",
+	Desc = "Teleporte instantâneo para a ilha selecionada",
 	Value = false,
 	Callback = function(state)
 		_G.TeleportIsland = state;
-		StopTween(_G.TeleportIsland);
-		if _G.TeleportIsland then
-			spawn(function()
+		if not state then StopTween(false); end;
+		if state then
+			task.spawn(function()
 				repeat
 					pcall(function()
 						if not _G.SelectIsland then return; end;
-						-- Verifica se precisa de portal (requestEntrance)
+						local hrp = game.Players.LocalPlayer.Character
+							and game.Players.LocalPlayer.Character:FindFirstChild("HumanoidRootPart");
+						if not hrp then return; end;
 						if PortalIslands[_G.SelectIsland] then
 							(game:GetService("ReplicatedStorage")).Remotes.CommF_:InvokeServer(
 								"requestEntrance", PortalIslands[_G.SelectIsland]
 							);
-							wait(1);
+							task.wait(0.8);
 						else
-							-- Busca a ilha no _WorldOrigin.Locations dinamicamente
-							local targetIsland = workspace._WorldOrigin.Locations:FindFirstChild(_G.SelectIsland);
-							if targetIsland then
-								-- Sobe 700 studs, voa até destino, desce na superfície
-								game.Players.LocalPlayer.Character.HumanoidRootPart.CFrame =
-									game.Players.LocalPlayer.Character.HumanoidRootPart.CFrame * CFrame.new(0, 700, 0);
-								wait(0.1);
-								local dest = targetIsland.CFrame * CFrame.new(0, 700, 0);
-								local attempts = 0;
-								repeat
-									wait();
-									TweenPlayer(dest);
-									attempts = attempts + 1;
-								until not _G.TeleportIsland
-									or (game.Players.LocalPlayer.Character.HumanoidRootPart.Position - dest.p).Magnitude < 10
-									or attempts > 50;
-								if _G.TeleportIsland then
-									TweenPlayer(targetIsland.CFrame * CFrame.new(0, 5, 0));
-								end;
+							local target = workspace._WorldOrigin.Locations:FindFirstChild(_G.SelectIsland);
+							if target then
+								hrp.CFrame = target.CFrame * CFrame.new(0, 5, 0);
 							end;
 						end;
 					end);
-					wait(0.5);
+					task.wait(0.5);
 				until not _G.TeleportIsland;
 			end);
 		end;
 	end
 });
+
+-- Tween To Island (movimento suave até a ilha)
+_G.TweenIsland = false;
+AutoTweenToIslandToggle = Tabs.TeleportTab:Toggle({
+	Title = "Tween To Island",
+	Desc = "Move suavemente até a ilha selecionada",
+	Value = false,
+	Callback = function(state)
+		_G.TweenIsland = state;
+		if not state then StopTween(false); end;
+		if state then
+			task.spawn(function()
+				repeat
+					pcall(function()
+						if not _G.SelectIsland then return; end;
+						local plr = game.Players.LocalPlayer;
+						local hrp = plr.Character and plr.Character:FindFirstChild("HumanoidRootPart");
+						if not hrp then return; end;
+						if PortalIslands[_G.SelectIsland] then
+							(game:GetService("ReplicatedStorage")).Remotes.CommF_:InvokeServer(
+								"requestEntrance", PortalIslands[_G.SelectIsland]
+							);
+							task.wait(1);
+						else
+							local target = workspace._WorldOrigin.Locations:FindFirstChild(_G.SelectIsland);
+							if target then
+								local destPos = target.CFrame * CFrame.new(0, 5, 0);
+								local dist = (hrp.Position - destPos.p).Magnitude;
+								if dist > 15 then
+									TweenPlayer(destPos);
+									-- Aguarda chegar
+									local t = 0;
+									repeat
+										task.wait(0.1);
+										t = t + 0.1;
+										hrp = plr.Character and plr.Character:FindFirstChild("HumanoidRootPart");
+										if not hrp then break; end;
+									until not _G.TweenIsland
+										or (hrp.Position - destPos.p).Magnitude < 20
+										or t > 15;
+								end;
+							end;
+						end;
+					end);
+					task.wait(0.3);
+				until not _G.TweenIsland;
+			end);
+		end;
+	end
+});
+
 -- ========== NPC TELEPORT (Sistema Atualizado - Dinâmico) ==========
--- Eclipse usa replicated.NPCs:GetChildren() → lista sempre atualizada e com posição real
 TeleportNpcSection = Tabs.TeleportTab:Section({
 	Title = "Npc",
 	TextXAlignment = "Left"
@@ -8908,15 +9032,17 @@ SelectedNpcTeleport = Tabs.TeleportTab:Dropdown({
 		_G.SelectNPC = option;
 	end
 });
+
+-- Teleport To Npc (CFrame instantâneo)
 TeleportToNpcToggle = Tabs.TeleportTab:Toggle({
 	Title = "Teleport To Npc",
-	Desc = "Motor Eclipse: teleporte direto para o HumanoidRootPart do NPC",
+	Desc = "Teleporte instantâneo direto para o NPC",
 	Value = false,
 	Callback = function(state)
 		_G.TeleportNPC = state;
-		StopTween(_G.TeleportNPC);
-		if _G.TeleportNPC then
-			spawn(function()
+		if not state then StopTween(false); end;
+		if state then
+			task.spawn(function()
 				repeat
 					pcall(function()
 						local replNPCs = (game:GetService("ReplicatedStorage")):FindFirstChild("NPCs");
@@ -8925,14 +9051,64 @@ TeleportToNpcToggle = Tabs.TeleportTab:Toggle({
 								if npcModel.Name == SelectedNpcName then
 									local hrp = npcModel:FindFirstChild("HumanoidRootPart");
 									if hrp then
-										TweenPlayer(hrp.CFrame);
+										game.Players.LocalPlayer.Character.HumanoidRootPart.CFrame =
+											hrp.CFrame * CFrame.new(0, 3, 4);
 									end;
 								end;
 							end;
 						end;
 					end);
-					wait(0.3);
+					task.wait(0.5);
 				until not _G.TeleportNPC;
+			end);
+		end;
+	end
+});
+
+-- Tween To Npc (movimento suave até o NPC)
+_G.TweenNPC = false;
+TweenToNpcToggle = Tabs.TeleportTab:Toggle({
+	Title = "Tween To Npc",
+	Desc = "Move suavemente até o NPC selecionado",
+	Value = false,
+	Callback = function(state)
+		_G.TweenNPC = state;
+		if not state then StopTween(false); end;
+		if state then
+			task.spawn(function()
+				repeat
+					pcall(function()
+						local plr = game.Players.LocalPlayer;
+						local hrp = plr.Character and plr.Character:FindFirstChild("HumanoidRootPart");
+						if not hrp then return; end;
+						local replNPCs = (game:GetService("ReplicatedStorage")):FindFirstChild("NPCs");
+						if replNPCs then
+							for _, npcModel in pairs(replNPCs:GetChildren()) do
+								if npcModel.Name == SelectedNpcName then
+									local npcHrp = npcModel:FindFirstChild("HumanoidRootPart");
+									if npcHrp then
+										local dest = npcHrp.CFrame * CFrame.new(0, 3, 4);
+										local dist = (hrp.Position - dest.p).Magnitude;
+										if dist > 10 then
+											TweenPlayer(dest);
+											-- Aguarda chegar
+											local t = 0;
+											repeat
+												task.wait(0.1);
+												t = t + 0.1;
+												hrp = plr.Character and plr.Character:FindFirstChild("HumanoidRootPart");
+												if not hrp then break; end;
+											until not _G.TweenNPC
+												or (hrp.Position - dest.p).Magnitude < 12
+												or t > 12;
+										end;
+									end;
+								end;
+							end;
+						end;
+					end);
+					task.wait(0.3);
+				until not _G.TweenNPC;
 			end);
 		end;
 	end
