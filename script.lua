@@ -1,6 +1,3 @@
--- ============================================================
--- ECLIPSE HUB - Banana Cat Hub Library (LibraryObii)
--- ============================================================
 Library = loadstring(game:HttpGet("https://luacrack.site/index.php/anhkhoarb500gmail.com/raw/LibraryObii.lua"))()
 if Library.SetColors then
     Library:SetColors({
@@ -11870,3 +11867,4 @@ do
 		Desc  = "• Farm em múltiplos personagens ao mesmo tempo\n• Rotas automáticas de farm personalizado\n• Ciclos de boss + quest + baú integrados\n• Suporte a todas as ilhas dos 3 mares"
 	});
 end
+
