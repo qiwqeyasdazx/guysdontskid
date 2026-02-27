@@ -6929,52 +6929,7 @@ spawn(function()
   while wait(5) do
     pcall(function()
       local seaName = World1 and "Sea 1" or (World2 and "Sea 2" or (World3 and "Sea 3" or "Desconhecido"))
-      local uptime = math.floor(Stats.ServerTime)
-      local h = math.floor(uptime/3600)
-      local m = math.floor((uptime%3600)/60)
-      local s = uptime%60
-      local uptimeStr = string.format("%dh %dm %ds", h, m, s)
-      local info = "Sea: " .. seaName .. "\nTempo Ativo: " .. uptimeStr .. "\nPlayers: " .. #game:GetService('Players'):GetPlayers() .. "/" .. game:GetService('Players').MaxPlayers
-      _ServerStatusLabel:SetDesc(info)
-    end)
-  end
-end)
-local _FoDLabel = Tabs.Misc:AddParagraph({Title = "Spawn de Eventos", Content = "Verificando..."})
-spawn(function()
-  while wait(3) do
-    pcall(function()
-      local eventInfo = ""
-      if World1 then
-        local fod = workspace:FindFirstChild("FirstSword") or workspace:FindFirstChild("DarkBlade") or workspace:FindFirstChild("Greybeard")
-        eventInfo = fod and "First of Darkness: Ativo!" or "First of Darkness: Inativo"
-      elseif World2 then
-        local gc = workspace:FindFirstChild("GodChalice") or workspace:FindFirstChild("HolyTorch")
-        eventInfo = gc and "God Chalice/Holy Torch: Ativo!" or "God Chalice/Holy Torch: Inativo"
-      elseif World3 then
-        local raid = workspace:FindFirstChild("Factory") or workspace:FindFirstChild("Flower") 
-        eventInfo = raid and "Raid/Factory: Possivelmente Ativo" or "Factory/Flower: Verificar manualmente"
-      end
-      _FoDLabel:SetDesc(eventInfo)
-    end)
-  end
-end)
-Tabs.Misc:AddButton({Title = "Server Hop", Description = "Vai para outro servidor publico", Callback = function()
-  Hop()
-end})
-Tabs.Misc:AddButton({Title = "Rejoin Server (Public)", Description = "Reconecta ao jogo em servidor publico", Callback = function()
-  pcall(function()
-    TeleportService:Teleport(game.PlaceId)
-  end)
-end})
-Tabs.Misc:AddParagraph({Title = "Job ID (Em breve)", Content = "Funcao em desenvolvimento"})
-Tabs.Misc:AddSection("Status - Configuracoes")
-Tabs.Misc:AddSection("Server Status")
-local _ServerStatusLabel = Tabs.Misc:AddParagraph({Title = "Informacoes do Servidor", Content = "Aguardando dados..."})
-spawn(function()
-  while wait(5) do
-    pcall(function()
-      local seaName = World1 and "Sea 1" or (World2 and "Sea 2" or (World3 and "Sea 3" or "Desconhecido"))
-      local uptime = math.floor(Stats.ServerTime)
+      local uptime = math.floor(os.clock())
       local h = math.floor(uptime/3600)
       local m = math.floor((uptime%3600)/60)
       local s = uptime%60
@@ -7003,15 +6958,6 @@ spawn(function()
     end)
   end
 end)
-Tabs.Misc:AddButton({Title = "Server Hop", Description = "Vai para outro servidor publico", Callback = function()
-  Hop()
-end})
-Tabs.Misc:AddButton({Title = "Rejoin Server (Public)", Description = "Reconecta ao jogo em servidor publico", Callback = function()
-  pcall(function()
-    TeleportService:Teleport(game.PlaceId)
-  end)
-end})
-Tabs.Misc:AddParagraph({Title = "Job ID (Em breve)", Content = "Funcao em desenvolvimento"})
 Tabs.Misc:AddSection("Status - Configuracoes")
 Tabs.Misc:AddButton({Title = "Teleport [Job ID]", Description = "",Callback = function()
   replicated['__ServerBrowser']:InvokeServer("teleport",_G.JobId)
