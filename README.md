@@ -6,4 +6,6 @@
 # Script Supported Games
 
 •Blox Fruits
-•Sailor Piece (Soon)
+•Sailor brainrotrotg (Soon)
+•Steal a brainrotg
+row A Garden 
