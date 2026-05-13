@@ -1,4 +1,4 @@
 # ECLIPSE HUB OFFICIAL GITHUB
 
--# JOIN DISCORD discord.gg/eeTwpuGaVa
+# JOIN DISCORD discord.gg/eeTwpuGaVa
 
