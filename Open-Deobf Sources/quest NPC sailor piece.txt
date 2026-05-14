@@ -1,0 +1,163 @@
+local HEIGHT_OFFSET = 5
+local TWEEN_SPEED = 160
+local LOCK_DELAY = 0.1
+local QUEST_COOLDOWN = 1.5
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local TweenService = game:GetService("TweenService")
+local LocalPlayer = Players.LocalPlayer
+local currentQuest = nil
+local FarmTable = {
+    {min=1,     max=99,    quest="QuestNPC1",  mobs={"Thief1","Thief2"}},
+    {min=250,   max=499,   quest="QuestNPC3",  mobs={"Monkey1"}},
+    {min=750,   max=999,   quest="QuestNPC5",  mobs={"DesertBandit1"}},
+    {min=1500,  max=1999,  quest="QuestNPC7",  mobs={"FrostRogue1"}},
+    {min=3000,  max=3999,  quest="QuestNPC9",  mobs={"Sorcerer1"}},
+    {min=5000,  max=6250,  quest="QuestNPC11", mobs={"Hollow1"}},
+    {min=6250,  max=7000,  quest="QuestNPC12", mobs={"StrongSorcerer1"}},
+    {min=7000,  max=8000,  quest="QuestNPC13", mobs={"Curse1"}},
+    {min=8000,  max=9000,  quest="QuestNPC14", mobs={"Slime1"}},
+    {min=9000,  max=10000, quest="QuestNPC15", mobs={"AcademyTeacher1"}},
+    {min=10000, max=10750, quest="QuestNPC16", mobs={"Swordsman1"}},
+    {min=11500, max=12000, quest="QuestNPC18", mobs={"Ninja1"}},
+    {min=12000, max=12750, quest="QuestNPC19", mobs={"ArenaFighter1"}},
+}
+local function getCharacter()
+    return LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
+end
+local function getHRP()
+    local char = getCharacter()
+    return char:WaitForChild("HumanoidRootPart")
+end
+local function getLevel()
+    local success, data = pcall(function()
+        return LocalPlayer.Data.Level.Value
+    end)
+    if success and type(data) == "number" then
+        return data
+    else
+        warn("Khong doc duoc Level tu Data")
+        return 0
+    end
+end
+local function getBestFarmData(level)
+    local bestMatch = nil
+    for _, v in ipairs(FarmTable) do
+        if level >= v.min and level <= v.max then
+            return v
+        end
+        if level < v.min then
+            break
+        end
+        bestMatch = v
+    end
+    return bestMatch
+end
+local function getNearestTarget(mobList)
+    local hrp = getHRP()
+    local nearest = nil
+    local minDist = math.huge
+    for _, name in ipairs(mobList) do
+        for _, mob in ipairs(workspace.NPCs:GetChildren()) do
+            if mob.Name == name and mob:FindFirstChild("Humanoid") and mob.Humanoid.Health > 0 then
+                local root = mob:FindFirstChild("HumanoidRootPart")
+                if root then
+                    local dist = (hrp.Position - root.Position).Magnitude
+                    if dist < minDist then
+                        minDist = dist
+                        nearest = mob
+                    end
+                end
+            end
+        end
+    end
+    return nearest
+end
+local function abandonQuest()
+    pcall(function()
+        ReplicatedStorage.RemoteEvents.QuestAbandon:FireServer("repeatable")
+    end)
+end
+local function acceptQuest(questName)
+    pcall(function()
+        ReplicatedStorage.RemoteEvents.QuestAccept:FireServer(questName)
+    end)
+end
+local function tweenTo(target)
+    local hrp = getHRP()
+    local root = target:FindFirstChild("HumanoidRootPart")
+    if not root then return end
+    local targetPos = root.Position + Vector3.new(0, HEIGHT_OFFSET, 0)
+    local dist = (hrp.Position - targetPos).Magnitude
+    local time = math.clamp(dist / TWEEN_SPEED, 0.5, 4)
+    local tween = TweenService:Create(hrp, TweenInfo.new(time, Enum.EasingStyle.Linear), {
+        CFrame = CFrame.new(targetPos)
+    })
+    tween:Play()
+    tween.Completed:Wait()
+end
+task.spawn(function()
+    while true do
+        task.wait(0.5)
+        local char = getCharacter()
+        for _, v in ipairs(char:GetDescendants()) do
+            if v:IsA("BasePart") then
+                v.CanCollide = false
+            end
+        end
+    end
+end)
+local function applyFloat()
+    local hrp = getHRP()
+    if not hrp:FindFirstChild("FloatBody") then
+        local bv = Instance.new("BodyVelocity")
+        bv.Name = "FloatBody"
+        bv.Velocity = Vector3.zero
+        bv.MaxForce = Vector3.new(1e5, 1e5, 1e5)
+        bv.Parent = hrp
+    end
+end
+task.spawn(function()
+    repeat task.wait() until LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+    while true do
+        task.wait(1)
+        local level = getLevel()
+        local data = getBestFarmData(level)
+        if not data then
+            continue
+        end
+        if currentQuest ~= data.quest then
+            abandonQuest()
+            task.wait(0.5)
+            acceptQuest(data.quest)
+            currentQuest = data.quest
+            task.wait(QUEST_COOLDOWN)
+        end
+        local target = getNearestTarget(data.mobs)
+        if target then
+            applyFloat()
+            tweenTo(target)
+            while target and target.Parent and target:FindFirstChild("Humanoid") do
+                local humanoid = target.Humanoid
+                if humanoid.Health <= 0 then break end
+                task.wait(LOCK_DELAY)
+                if not target.Parent then break end
+                local root = target:FindFirstChild("HumanoidRootPart")
+                if not root then break end
+                local hrp = getHRP()
+                hrp.CFrame = root.CFrame * CFrame.new(0, HEIGHT_OFFSET, 0)
+            end
+        else
+            task.wait(3)
+        end
+    end
+end)
+
+--[[
+    ⚠️ KHANHLY HUB LICENSE
+    Script thuộc quyền sở hữu của KhanhLy
+    Không được chỉnh sửa / reupload khi chưa xin phép
+    Nếu bạn đang đọc dòng này → hãy xin quyền sử dụng
+
+    Contact: ...
+]]

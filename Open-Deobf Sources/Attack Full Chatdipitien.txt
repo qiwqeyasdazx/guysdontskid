@@ -1,0 +1,349 @@
+--// ================================================================
+--// ATTACK UI - Fast Attack (Koby) + Aura Fruit
+--// Chạy độc lập, gắn logic từ topi_hub vào UI riêng
+--// ================================================================
+
+local Players          = game:GetService("Players")
+local RunService       = game:GetService("RunService")
+local ReplicatedStorage= game:GetService("ReplicatedStorage")
+local UserInputService = game:GetService("UserInputService")
+local Workspace        = game:GetService("Workspace")
+
+local player = Players.LocalPlayer
+
+--------------------------------------------------------------------
+-- FLAGS (dùng getgenv để chia sẻ với topi_hub nếu cùng chạy)
+--------------------------------------------------------------------
+getgenv().FastAttack = getgenv().FastAttack or false
+getgenv().AuraFruit  = getgenv().AuraFruit  or false
+
+--------------------------------------------------------------------
+-- FAST ATTACK: Koby script
+-- Chỉ load 1 lần duy nhất khi FastAttack = true
+--------------------------------------------------------------------
+local _kobyLoaded = false
+local function ActivateKobyAttack()
+    if _kobyLoaded then return end
+    _kobyLoaded = true
+    pcall(function()
+        loadstring(game:HttpGet(
+            "https://raw.githubusercontent.com/AnhDangNhoEm/TuanAnhIOS/refs/heads/main/koby"
+        ))()
+    end)
+    print("✅ Koby (Fast Attack) loaded!")
+end
+
+--------------------------------------------------------------------
+-- AURA FRUIT ATTACK: RegisterHit spam + LeftClickRemote
+-- Độc lập với FastAttack, chỉ check getgenv().AuraFruit
+--------------------------------------------------------------------
+local _AF_Net, _AF_RegisterAttack, _AF_RegisterHit
+
+pcall(function()
+    _AF_Net            = ReplicatedStorage:WaitForChild("Modules", 5):WaitForChild("Net", 5)
+    _AF_RegisterAttack = _AF_Net:WaitForChild("RE/RegisterAttack", 5)
+    _AF_RegisterHit    = _AF_Net:WaitForChild("RE/RegisterHit", 5)
+end)
+
+local _AF_CONFIG = {
+    RANGE             = 10000,
+    ATTACKS_PER_FRAME = 0,
+    HITS_PER_FRAME    = 0,
+    FRUIT_SPAM        = 8,
+}
+
+local function _AF_IsAlive(model)
+    local h = model:FindFirstChild("Humanoid")
+    return h and h.Health > 0
+end
+
+local function _AF_GetTargets()
+    local char = player.Character
+    if not char then return {} end
+    local hrp = char:FindFirstChild("HumanoidRootPart")
+    if not hrp then return {} end
+    local list = {}
+    local function Scan(folder)
+        for _, v in pairs(folder:GetChildren()) do
+            if v ~= char and v:FindFirstChild("HumanoidRootPart") and _AF_IsAlive(v) then
+                if (hrp.Position - v.HumanoidRootPart.Position).Magnitude <= _AF_CONFIG.RANGE then
+                    table.insert(list, v)
+                end
+            end
+        end
+    end
+    pcall(function() if Workspace:FindFirstChild("Enemies")    then Scan(Workspace.Enemies)    end end)
+    pcall(function() if Workspace:FindFirstChild("Characters") then Scan(Workspace.Characters) end end)
+    return list
+end
+
+local function _AF_AttackMeleeSword(targets)
+    if not _AF_RegisterAttack or not _AF_RegisterHit then return end
+    for _ = 1, _AF_CONFIG.ATTACKS_PER_FRAME do
+        _AF_RegisterAttack:FireServer(0)
+    end
+    for _, v in ipairs(targets) do
+        if v:FindFirstChild("HumanoidRootPart") then
+            local args = { [1] = v.HumanoidRootPart, [2] = { {v, v.HumanoidRootPart} } }
+            for _ = 1, _AF_CONFIG.HITS_PER_FRAME do
+                _AF_RegisterHit:FireServer(unpack(args))
+            end
+        end
+    end
+end
+
+local function _AF_GetFruitTool()
+    local char = player.Character
+    if char then
+        for _, v in pairs(char:GetChildren()) do
+            if v:IsA("Tool") and v.ToolTip == "Blox Fruit" then return v end
+        end
+    end
+    for _, v in pairs(player.Backpack:GetChildren()) do
+        if v:IsA("Tool") and v.ToolTip == "Blox Fruit" then return v end
+    end
+end
+
+local function _AF_AttackFruit(targets)
+    local fruit = _AF_GetFruitTool()
+    if not fruit then return end
+    local remote = fruit:FindFirstChild("LeftClickRemote")
+    if not remote then return end
+    local char = player.Character
+    if not char then return end
+    local hrp = char:FindFirstChild("HumanoidRootPart")
+    if not hrp then return end
+    local target = targets[1]
+    if not target or not target:FindFirstChild("HumanoidRootPart") then return end
+    local dir = (target.HumanoidRootPart.Position - hrp.Position).Unit
+    for _ = 1, _AF_CONFIG.FRUIT_SPAM do
+        remote:FireServer(dir, 1)
+    end
+end
+
+-- Heartbeat loop: chỉ chạy khi AuraFruit = true, độc lập với FastAttack
+local _afHeartbeat = RunService.Heartbeat:Connect(function()
+    if not getgenv().AuraFruit then return end
+    if getgenv().BuddhaTransforming then return end
+    local targets = _AF_GetTargets()
+    if #targets == 0 then return end
+    _AF_AttackMeleeSword(targets)
+    _AF_AttackFruit(targets)
+end)
+
+--------------------------------------------------------------------
+-- HÀM TẮT SẠCH TẤT CẢ (gọi khi xóa UI)
+--------------------------------------------------------------------
+local function stopAllLogic()
+    getgenv().FastAttack = false
+    getgenv().AuraFruit  = false
+    if _afHeartbeat then
+        _afHeartbeat:Disconnect()
+        _afHeartbeat = nil
+    end
+    print("🛑 Đã tắt toàn bộ Fast Attack + Aura Fruit")
+end
+
+--------------------------------------------------------------------
+-- MAIN GUI
+--------------------------------------------------------------------
+local gui = Instance.new("ScreenGui")
+gui.Name = "AttackUI"
+gui.ResetOnSpawn = false
+gui.Parent = player:WaitForChild("PlayerGui")
+
+local mainFrame = Instance.new("Frame", gui)
+mainFrame.Size = UDim2.new(0, 220, 0, 100)
+mainFrame.Position = UDim2.new(0, 10, 0, 10)
+mainFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+mainFrame.BorderSizePixel = 0
+local mfc = Instance.new("UICorner", mainFrame); mfc.CornerRadius = UDim.new(0, 6)
+
+-- ===== TOGGLE FACTORY =====
+-- Trả về: button, getter(), setter(bool)
+local function createToggle(name, posY)
+    local btn = Instance.new("TextButton", mainFrame)
+    btn.Size = UDim2.new(0, 200, 0, 30)
+    btn.Position = UDim2.new(0, 10, 0, posY)
+    btn.TextColor3 = Color3.new(1, 1, 1)
+    btn.Font = Enum.Font.GothamBold
+    btn.TextSize = 13
+    btn.BackgroundColor3 = Color3.fromRGB(80, 20, 20)
+    btn.BorderSizePixel = 0
+    local bc = Instance.new("UICorner", btn); bc.CornerRadius = UDim.new(0, 4)
+
+    local state = false
+
+    local function setState(v)
+        state = v
+        if state then
+            btn.BackgroundColor3 = Color3.fromRGB(20, 110, 20)
+            btn.Text = name .. "  ●  ON"
+        else
+            btn.BackgroundColor3 = Color3.fromRGB(80, 20, 20)
+            btn.Text = name .. "  ●  OFF"
+        end
+    end
+
+    setState(false) -- khởi tạo text/màu
+
+    return btn, function() return state end, setState
+end
+
+local toggle1, getFA, setFA = createToggle("Fast Attack", 10)
+local toggle2, getAF, setAF = createToggle("Aura Fruit",  50)
+
+-- Callback Fast Attack
+toggle1.MouseButton1Click:Connect(function()
+    local v = not getFA()
+    setFA(v)
+    getgenv().FastAttack = v
+    if v then ActivateKobyAttack() end
+end)
+
+-- Callback Aura Fruit
+toggle2.MouseButton1Click:Connect(function()
+    local v = not getAF()
+    setAF(v)
+    getgenv().AuraFruit = v
+end)
+
+-- ===== BUTTON "X" =====
+local closeBtn = Instance.new("TextButton", mainFrame)
+closeBtn.Size = UDim2.new(0, 30, 0, 30)
+closeBtn.Position = UDim2.new(1, -35, 0, 0)
+closeBtn.Text = "X"
+closeBtn.TextColor3 = Color3.new(1, 1, 1)
+closeBtn.Font = Enum.Font.GothamBold
+closeBtn.TextSize = 14
+closeBtn.BackgroundColor3 = Color3.fromRGB(180, 30, 30)
+closeBtn.BorderSizePixel = 0
+local xc = Instance.new("UICorner", closeBtn); xc.CornerRadius = UDim.new(0, 4)
+
+-- ===== CONFIRM FRAME =====
+local confirmFrame = Instance.new("Frame", gui)
+confirmFrame.Size = UDim2.new(0, 200, 0, 120)
+confirmFrame.Position = UDim2.new(0.5, -100, 0.5, -60)
+confirmFrame.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+confirmFrame.BorderSizePixel = 0
+confirmFrame.Visible = false
+local cfc = Instance.new("UICorner", confirmFrame); cfc.CornerRadius = UDim.new(0, 8)
+
+local cfTitle = Instance.new("TextLabel", confirmFrame)
+cfTitle.Size = UDim2.new(1, 0, 0, 55)
+cfTitle.Position = UDim2.new(0, 0, 0, 5)
+cfTitle.Text = "Xóa UI sẽ tắt luôn\nFast Attack + Aura Fruit!"
+cfTitle.BackgroundTransparency = 1
+cfTitle.TextColor3 = Color3.new(1, 1, 1)
+cfTitle.Font = Enum.Font.Gotham
+cfTitle.TextSize = 12
+
+local yesBtn = Instance.new("TextButton", confirmFrame)
+yesBtn.Size = UDim2.new(0.4, 0, 0, 30)
+yesBtn.Position = UDim2.new(0.05, 0, 0.62, 0)
+yesBtn.Text = "Có"
+yesBtn.TextColor3 = Color3.new(1, 1, 1)
+yesBtn.Font = Enum.Font.GothamBold
+yesBtn.BackgroundColor3 = Color3.fromRGB(0, 170, 0)
+yesBtn.BorderSizePixel = 0
+local yc = Instance.new("UICorner", yesBtn); yc.CornerRadius = UDim.new(0, 4)
+
+local noBtn = Instance.new("TextButton", confirmFrame)
+noBtn.Size = UDim2.new(0.4, 0, 0, 30)
+noBtn.Position = UDim2.new(0.55, 0, 0.62, 0)
+noBtn.Text = "Không"
+noBtn.TextColor3 = Color3.new(1, 1, 1)
+noBtn.Font = Enum.Font.GothamBold
+noBtn.BackgroundColor3 = Color3.fromRGB(200, 0, 0)
+noBtn.BorderSizePixel = 0
+local nc = Instance.new("UICorner", noBtn); nc.CornerRadius = UDim.new(0, 4)
+
+--------------------------------------------------------------------
+-- CONTROL GUI — nút ảnh kéo thả, nhấn ẩn/hiện mainFrame
+--------------------------------------------------------------------
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "ControlGUI"
+screenGui.ResetOnSpawn = false
+screenGui.Parent = game.CoreGui
+
+local toggleButton = Instance.new("ImageButton", screenGui)
+toggleButton.Size = UDim2.new(0, 50, 0, 50)
+toggleButton.Position = UDim2.new(0.15, 0, 0.15, 0)
+toggleButton.Image = "rbxassetid://89099965623104"
+toggleButton.BackgroundTransparency = 1
+toggleButton.Active = true
+toggleButton.Draggable = false
+
+-- Drag logic
+local dragging  = false
+local dragInput = nil
+local dragStart = nil
+local startPos  = nil
+
+toggleButton.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1
+    or input.UserInputType == Enum.UserInputType.Touch then
+        dragging  = true
+        dragStart = input.Position
+        startPos  = toggleButton.Position
+        input.Changed:Connect(function()
+            if input.UserInputState == Enum.UserInputState.End then
+                dragging = false
+            end
+        end)
+    end
+end)
+
+toggleButton.InputChanged:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseMovement
+    or input.UserInputType == Enum.UserInputType.Touch then
+        dragInput = input
+    end
+end)
+
+UserInputService.InputChanged:Connect(function(input)
+    if input == dragInput and dragging then
+        local delta = input.Position - dragStart
+        toggleButton.Position = UDim2.new(
+            startPos.X.Scale, startPos.X.Offset + delta.X,
+            startPos.Y.Scale, startPos.Y.Offset + delta.Y
+        )
+    end
+end)
+
+UserInputService.InputEnded:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1
+    or input.UserInputType == Enum.UserInputType.Touch then
+        dragging = false
+    end
+end)
+
+-- Nhấn nút ảnh → ẩn/hiện mainFrame (bao gồm 2 toggle + nút X)
+-- confirmFrame KHÔNG bị ẩn (nếu đang mở thì vẫn hiện)
+local hidden = false
+toggleButton.MouseButton1Click:Connect(function()
+    hidden = not hidden
+    mainFrame.Visible = not hidden
+end)
+
+--------------------------------------------------------------------
+-- CLOSE / CONFIRM LOGIC
+--------------------------------------------------------------------
+closeBtn.MouseButton1Click:Connect(function()
+    confirmFrame.Visible = true
+end)
+
+yesBtn.MouseButton1Click:Connect(function()
+    -- Tắt toàn bộ attack logic trước
+    stopAllLogic()
+    -- Xóa ControlGUI (nút ảnh)
+    pcall(function() screenGui:Destroy() end)
+    -- Xóa main GUI (bao gồm cả confirmFrame)
+    gui:Destroy()
+end)
+
+noBtn.MouseButton1Click:Connect(function()
+    confirmFrame.Visible = false
+end)
+
+print("✅ Attack UI loaded!")

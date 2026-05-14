@@ -1,0 +1,457 @@
+--// Topi Bounty Farm – Merged
+--// Logic: bounty.lua | UI: Topi_bountyV3.lua (Bounty, Target, HP)
+
+-------------------------------------------------
+-- CONFIG
+-------------------------------------------------
+
+local Config = getgenv().Config or {
+    Team = "Pirates",
+    Settings = {
+        ["Specator Target"] = false
+    },
+    HuntConfig = {
+        ["Farm Delay"] = 0.22
+    }
+}
+
+local FarmDelay     = Config.HuntConfig["Farm Delay"]
+local SpectateTarget = Config.Settings and Config.Settings["Specator Target"]
+
+repeat task.wait() until game:IsLoaded()
+
+-------------------------------------------------
+-- LOAD ATTACK
+-------------------------------------------------
+
+task.spawn(function()
+    task.wait(1)
+    loadstring(game:HttpGet("https://raw.githubusercontent.com/TopiHub1909/TopiHub/refs/heads/main/Attack"))()
+end)
+
+-------------------------------------------------
+-- SERVICES
+-------------------------------------------------
+
+local Players          = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local TeleportService  = game:GetService("TeleportService")
+local HttpService      = game:GetService("HttpService")
+local RunService       = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+
+local player   = Players.LocalPlayer
+local PlaceID  = game.PlaceId
+local Camera   = workspace.CurrentCamera
+
+-------------------------------------------------
+-- JOIN TEAM
+-------------------------------------------------
+
+pcall(function()
+    ReplicatedStorage.Remotes.CommF_:InvokeServer("SetTeam", Config.Team)
+end)
+
+-------------------------------------------------
+-- UTILITY
+-------------------------------------------------
+
+local function FormatNumber(n)
+    local s = tostring(n)
+    local k
+    repeat s, k = string.gsub(s, "^(-?%d+)(%d%d%d)", "%1.%2") until k == 0
+    return s
+end
+
+-------------------------------------------------
+-- UI
+-------------------------------------------------
+
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name         = "BountyUI"
+ScreenGui.ResetOnSpawn = false
+ScreenGui.Parent       = player.PlayerGui
+
+local Main = Instance.new("Frame")
+Main.Size             = UDim2.new(0, 275, 0, 220)
+Main.Position         = UDim2.new(0.5, -137, 0, 10)
+Main.BackgroundColor3    = Color3.fromRGB(13, 13, 13)
+Main.BackgroundTransparency = 0.45
+Main.BorderSizePixel     = 0
+Main.Parent              = ScreenGui
+Instance.new("UICorner", Main).CornerRadius = UDim.new(0, 10)
+
+local function makeLabel(yOff, txt, col)
+    local L = Instance.new("TextLabel")
+    L.Size                = UDim2.new(1, -10, 0, 18)
+    L.Position            = UDim2.new(0, 5, 0, yOff)
+    L.BackgroundTransparency = 1
+    L.Text                = txt
+    L.Font                = Enum.Font.SourceSans
+    L.TextSize            = 14
+    L.TextXAlignment      = Enum.TextXAlignment.Left
+    L.TextWrapped         = true
+    L.TextColor3          = col or Color3.new(1, 1, 1)
+    L.Parent              = Main
+    return L
+end
+
+-- Title
+local Title = makeLabel(3, "🎯 Topi Bounty Farm", Color3.new(1, 1, 1))
+Title.Font           = Enum.Font.SourceSansBold
+Title.TextSize       = 16
+Title.TextXAlignment = Enum.TextXAlignment.Center
+Title.Size           = UDim2.new(1, 0, 0, 22)
+
+-- Info rows
+local TimeLabel   = makeLabel(26,  "Time: 00H 00P 00S")
+local BountyLabel = makeLabel(45,  "Bounty: ...",                  Color3.fromRGB(255, 215, 80))
+local StatusLabel = makeLabel(64,  "Status: Idle",                 Color3.fromRGB(210, 210, 210))
+local TargetLabel = makeLabel(83,  "Target: None",                 Color3.fromRGB(100, 225, 100))
+local HealthLabel = makeLabel(102, "HP: --- | Dist: ---",          Color3.fromRGB(230, 165, 95))
+local HopLabel    = makeLabel(121, "Auto Hop in: --m --s",         Color3.fromRGB(200, 180, 100))
+
+-- Divider
+local Div = Instance.new("Frame")
+Div.Size             = UDim2.new(1, -20, 0, 1)
+Div.Position         = UDim2.new(0, 10, 0, 147)
+Div.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+Div.BackgroundTransparency = 0.45
+Div.BorderSizePixel  = 0
+Div.Parent           = Main
+
+-- HOP button
+local hopButton = Instance.new("TextButton")
+hopButton.Size             = UDim2.new(0, 140, 0, 26)
+hopButton.Position         = UDim2.new(0.5, -70, 1, -33)
+hopButton.BackgroundColor3 = Color3.fromRGB(170, 40, 40)
+hopButton.Text             = "⏩  HOP: OFF"
+hopButton.Font             = Enum.Font.SourceSansBold
+hopButton.TextSize         = 14
+hopButton.TextColor3       = Color3.new(1, 1, 1)
+hopButton.Parent           = Main
+Instance.new("UICorner", hopButton).CornerRadius = UDim.new(0, 6)
+
+-- Draggable
+do
+    local drag, ds, sp
+    Main.InputBegan:Connect(function(i)
+        if i.UserInputType == Enum.UserInputType.MouseButton1 then
+            drag = true; ds = i.Position; sp = Main.Position
+        end
+    end)
+    Main.InputEnded:Connect(function(i)
+        if i.UserInputType == Enum.UserInputType.MouseButton1 then drag = false end
+    end)
+    UserInputService.InputChanged:Connect(function(i)
+        if drag and i.UserInputType == Enum.UserInputType.MouseMovement then
+            local d = i.Position - ds
+            Main.Position = UDim2.new(
+                sp.X.Scale, sp.X.Offset + d.X,
+                sp.Y.Scale, sp.Y.Offset + d.Y
+            )
+        end
+    end)
+end
+
+-------------------------------------------------
+-- TIME COUNTER
+-------------------------------------------------
+
+local startTime = tick()
+RunService.RenderStepped:Connect(function()
+    local e = math.floor(tick() - startTime)
+    TimeLabel.Text = string.format("Time: %02dH %02dP %02dS",
+        math.floor(e / 3600), math.floor((e % 3600) / 60), e % 60)
+end)
+
+-------------------------------------------------
+-- BOUNTY / HONOR DISPLAY
+-------------------------------------------------
+
+task.spawn(function()
+    while task.wait(1) do
+        pcall(function()
+            local v  = player.leaderstats["Bounty/Honor"].Value
+            local nm = (player.Team and player.Team.Name == "Marines") and "Honor" or "Bounty"
+            BountyLabel.Text = nm .. ": " .. FormatNumber(v)
+        end)
+    end
+end)
+
+-------------------------------------------------
+-- SERVER HOP
+-------------------------------------------------
+
+local visited    = {}
+local HopEnabled = false
+
+hopButton.MouseButton1Click:Connect(function()
+    HopEnabled = not HopEnabled
+    if HopEnabled then
+        hopButton.Text             = "⏩  HOP: ON"
+        hopButton.BackgroundColor3 = Color3.fromRGB(50, 170, 80)
+    else
+        hopButton.Text             = "⏩  HOP: OFF"
+        hopButton.BackgroundColor3 = Color3.fromRGB(170, 40, 40)
+    end
+end)
+
+function HopServer()
+    local cursor = ""
+    while true do
+        local url  = "https://games.roblox.com/v1/games/" .. PlaceID
+                   .. "/servers/Public?sortOrder=Asc&limit=100&cursor=" .. cursor
+        local body = game:HttpGet(url)
+        local data = HttpService:JSONDecode(body)
+
+        for _, server in pairs(data.data) do
+            if server.playing < server.maxPlayers
+            and server.id ~= game.JobId
+            and not table.find(visited, server.id) then
+                table.insert(visited, server.id)
+                TeleportService:TeleportToPlaceInstance(PlaceID, server.id, player)
+                return
+            end
+        end
+
+        if data.nextPageCursor then
+            cursor = data.nextPageCursor
+        else
+            break
+        end
+    end
+end
+
+-- Manual hop toggle loop
+task.spawn(function()
+    while task.wait(3) do
+        if HopEnabled then
+            pcall(HopServer)
+        end
+    end
+end)
+
+-------------------------------------------------
+-- AUTO HOP TIMER (3m30)
+-------------------------------------------------
+
+local StartTime = tick()
+local HopTime   = 180
+
+task.spawn(function()
+    while true do
+        local elapsed = tick() - StartTime
+        local remain  = math.max(0, HopTime - elapsed)
+        local minutes = math.floor(remain / 60)
+        local seconds = math.floor(remain % 60)
+
+        HopLabel.Text = string.format("Auto Hop in: %dm %02ds", minutes, seconds)
+
+        if elapsed >= HopTime then
+            StatusLabel.Text = "Status: Auto hopping..."
+            pcall(HopServer)
+            break
+        end
+
+        task.wait(1)
+    end
+end)
+
+-------------------------------------------------
+-- BLOX FRUIT
+-------------------------------------------------
+
+_G.SelectWeapon = nil
+
+function GetFruit()
+    for _, v in pairs(player.Backpack:GetChildren()) do
+        if v.ToolTip == "Blox Fruit" then
+            _G.SelectWeapon = v.Name
+            return
+        end
+    end
+end
+
+function EquipFruit()
+    pcall(function()
+        if _G.SelectWeapon
+        and player.Backpack:FindFirstChild(_G.SelectWeapon)
+        and player.Character
+        and player.Character:FindFirstChild("Humanoid") then
+            player.Character.Humanoid:EquipTool(player.Backpack[_G.SelectWeapon])
+        end
+    end)
+end
+
+-------------------------------------------------
+-- TARGET SYSTEM
+-------------------------------------------------
+
+local DeadTargets = {}
+
+function GetTargets()
+    local list = {}
+
+    for _, v in pairs(Players:GetPlayers()) do
+
+        -- Skip same team
+        if Config.Team == "Marines" then
+            if v.Team and v.Team.Name == "Marines" then continue end
+        end
+
+        if v ~= player
+        and not DeadTargets[v.Name]
+        and v.Character
+        and v.Character:FindFirstChild("Humanoid")
+        and v.Character:FindFirstChild("HumanoidRootPart") then
+
+            if v.Character.Humanoid.Health <= 0 then
+                DeadTargets[v.Name] = true
+            else
+                table.insert(list, v)
+            end
+        end
+    end
+
+    return list
+end
+
+-------------------------------------------------
+-- TELEPORT LOOP
+-------------------------------------------------
+
+local TeleportLoop = false
+
+task.spawn(function()
+    while true do
+        if TeleportLoop then
+
+            local targets = GetTargets()
+
+            if #targets == 0 then
+                StatusLabel.Text = "Status: No target – hopping..."
+                TargetLabel.Text = "Target: None"
+                HealthLabel.Text = "HP: --- | Dist: ---"
+                pcall(HopServer)
+                break
+            end
+
+            for _, target in pairs(targets) do
+                if not TeleportLoop then break end
+
+                if target
+                and target.Character
+                and target.Character:FindFirstChild("HumanoidRootPart") then
+
+                    if target.Character.Humanoid.Health <= 0 then
+                        DeadTargets[target.Name] = true
+                    else
+                        -- ── Update UI ──────────────────────────────────────
+                        local tHum  = target.Character:FindFirstChild("Humanoid")
+                        local tHRP  = target.Character:FindFirstChild("HumanoidRootPart")
+                        local myHRP = player.Character
+                                      and player.Character:FindFirstChild("HumanoidRootPart")
+
+                        StatusLabel.Text = "Status: Farming"
+                        TargetLabel.Text = "Target: " .. target.Name
+
+                        if tHum and tHRP and myHRP then
+                            local hp    = math.floor(tHum.Health)
+                            local maxHp = math.floor(tHum.MaxHealth)
+                            local dist  = math.floor((tHRP.Position - myHRP.Position).Magnitude)
+                            HealthLabel.Text = string.format(
+                                "HP: %d/%d | Dist: %d", hp, maxHp, dist)
+                        end
+                        -- ──────────────────────────────────────────────────
+
+                        if SpectateTarget then
+                            if tHum then
+                                Camera.CameraSubject = tHum
+                            end
+                        end
+
+                        local root = player.Character
+                                     and player.Character:FindFirstChild("HumanoidRootPart")
+                        if root then
+                            root.CFrame = target.Character.HumanoidRootPart.CFrame
+                        end
+                    end
+                end
+
+                task.wait(FarmDelay)
+            end
+
+        else
+            task.wait()
+        end
+    end
+end)
+
+-------------------------------------------------
+-- EQUIP LOOP
+-------------------------------------------------
+
+task.spawn(function()
+    while true do
+        GetFruit()
+        EquipFruit()
+        task.wait()
+    end
+end)
+
+-------------------------------------------------
+-- TELEPORT SKY
+-------------------------------------------------
+
+function TeleportSky()
+    local char = player.Character
+    if char and char:FindFirstChild("HumanoidRootPart") then
+        local root = char.HumanoidRootPart
+        for i = 1, 4 do
+            root.CFrame = CFrame.new(root.Position.X, 5000, root.Position.Z)
+            task.wait()
+        end
+    end
+end
+
+-------------------------------------------------
+-- RESET CYCLE
+-------------------------------------------------
+
+task.spawn(function()
+    while true do
+        local char = player.Character
+
+        if char
+        and char:FindFirstChild("Humanoid")
+        and char:FindFirstChild("HumanoidRootPart") then
+
+            TeleportLoop = false
+            StatusLabel.Text = "Status: Resetting..."
+            TargetLabel.Text = "Target: None"
+            HealthLabel.Text = "HP: --- | Dist: ---"
+
+            TeleportSky()
+            task.wait(0.3)
+
+            char.Humanoid.Health = 0
+
+            TeleportLoop = true
+            player.CharacterAdded:Wait()
+            TeleportLoop = false
+        end
+
+        task.wait()
+    end
+end)
+
+-------------------------------------------------
+-- RESPAWN
+-------------------------------------------------
+
+player.CharacterAdded:Connect(function(char)
+    repeat task.wait() until char:FindFirstChild("HumanoidRootPart")
+    GetFruit()
+    EquipFruit()
+end)
